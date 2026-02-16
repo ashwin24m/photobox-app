@@ -9,15 +9,13 @@ export default function JoinPage() {
 
   const router = useRouter();
 
-
-  function join() {
+  function handleJoin() {
 
     if (!code) return;
 
-    router.push("/e/" + code);
+    router.push(`/e/${code}`);
 
   }
-
 
   return (
 
@@ -25,28 +23,23 @@ export default function JoinPage() {
 
       <div className="max-w-md mx-auto px-6 py-12">
 
-        <h1 className="text-xl font-semibold mb-6">
-
+        <h1 className="text-xl font-semibold mb-4">
           Enter Event Code
-
         </h1>
-
 
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="example: kabgpr"
+          placeholder="Example: kabgpr"
           className="w-full border rounded-lg px-4 py-3 mb-4"
         />
 
-
         <button
-          onClick={join}
+          onClick={handleJoin}
           className="w-full bg-black text-white py-3 rounded-lg"
         >
           Continue
         </button>
-
 
       </div>
 
