@@ -33,6 +33,25 @@ export default function EventUploadPage() {
       .eq("event_code", eventCode)
       .single();
 
+      if (
+
+  event.expiry_date &&
+
+  new Date(event.expiry_date).getTime()
+
+  <
+
+  Date.now()
+
+) {
+
+  alert("This event has expired");
+
+  return;
+
+}
+
+
     if (!event) {
       alert("Event not found");
       return;

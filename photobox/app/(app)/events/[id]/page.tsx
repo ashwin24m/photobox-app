@@ -91,6 +91,48 @@ async function loadMedia() {
           {event?.name}
         </h1>
 
+
+        <p className="text-sm text-gray-500 mb-4">
+
+  Expires in: {
+
+    event?.expiry_date
+
+    ?
+
+    Math.max(
+
+      0,
+
+      Math.ceil(
+
+        (
+
+          new Date(event.expiry_date).getTime()
+
+          -
+
+          Date.now()
+
+        )
+
+        /
+
+        (1000 * 60 * 60 * 24)
+
+      )
+
+    )
+
+    :
+
+    0
+
+  } days
+
+</p>
+
+
            <p className="text-sm text-gray-500 mb-6">
           Upload Link:
           <br />

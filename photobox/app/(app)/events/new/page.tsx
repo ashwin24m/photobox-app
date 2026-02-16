@@ -28,13 +28,17 @@ export default function NewEventPage() {
     const { data, error } = await supabase
       .from("events")
       .insert([
-        {
-          name: name,
-          description: description,
-          event_code: eventCode,
-          storage_limit_gb: 15,
-        },
-      ])
+  {
+    name: name,
+    description: description,
+    event_code: eventCode,
+    storage_limit_gb: 15,
+    expiry_date: new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000
+    ),
+  },
+])
+
       .select()
       .single();
 
