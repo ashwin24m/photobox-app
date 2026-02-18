@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { useParams } from "next/navigation";
 
 const supabase = getSupabase();
-
-import { useParams } from "next/navigation";
 
 export default function EventUploadPage() {
 
   const params = useParams();
-
   const eventCode = params.code as string;
+
+  const [event, setEvent] = useState<any>(null);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,60 +19,79 @@ export default function EventUploadPage() {
   const [eventId, setEventId] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
-
   const [ready, setReady] = useState(false);
 
+  const [expired, setExpired] = useState(false);
 
-  async function continueToUpload() {
+  useEffect(() => {
 
-    if (!name || !phone) {
-      alert("Enter name and phone");
-      return;
-    }
+    loadEvent();
 
-    const { data: event } = await supabase
+  }, []);
+
+  async function loadEvent() {
+
+    const { data } = await supabase
       .from("events")
       .select("*")
       .eq("event_code", eventCode)
       .single();
 
-      if (
+    if (!data) return;
 
-  event.expiry_date &&
+    if (
+      data.expiry_date &&
+      new Date(data.expiry_date).getTime() < Date.now()
+    ) {
 
-  new Date(event.expiry_date).getTime()
-
-  <
-
-  Date.now()
-
-) {
-
-  alert("This event has expired");
-
-  return;
-
-}
-
-
-    if (!event) {
-      alert("Event not found");
+      setExpired(true);
       return;
+
+    }
+
+    setEvent(data);
+
+  }
+
+  function daysLeft() {
+
+    if (!event?.expiry_date) return 0;
+
+    return Math.max(
+      0,
+      Math.ceil(
+        (
+          new Date(event.expiry_date).getTime()
+          -
+          Date.now()
+        )
+        /
+        (1000 * 60 * 60 * 24)
+      )
+    );
+
+  }
+
+  async function continueToUpload() {
+
+    if (!name || !phone || !event) {
+
+      alert("Enter name and phone");
+      return;
+
     }
 
     setEventId(event.id);
 
-    const { data: attendee } = await supabase
+    await supabase
       .from("attendees")
       .insert([
         {
           event_id: event.id,
           name,
-          phone,
-        },
-      ])
-      .select()
-      .single();
+          phone
+        }
+      ]);
 
     setReady(true);
 
@@ -81,85 +100,157 @@ export default function EventUploadPage() {
 
   async function handleUpload(e: any) {
 
-  if (!eventId) return;
+    if (!eventId) return;
 
-  const file = e.target.files[0];
+    const file = e.target.files[0];
+    if (!file) return;
 
-  if (!file) return;
+    setUploading(true);
 
-  // NEW: Check storage limit
+    // storage check
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", eventId)
-    .single();
+    const { data: media } = await supabase
+      .from("media")
+      .select("file_size")
+      .eq("event_id", eventId);
+
+    const used =
+      (media || []).reduce(
+        (sum, m) => sum + Number(m.file_size || 0),
+        0
+      );
+
+    const limit =
+      event.storage_limit_gb * 1024 * 1024 * 1024;
+
+    if (used + file.size > limit) {
+
+      alert("Storage limit reached");
+      setUploading(false);
+      return;
+
+    }
+
+    // upload to cloudinary
+
+    const formData = new FormData();
+
+    formData.append("file", file);
+    formData.append(
+      "upload_preset",
+      "photobox"
+    );
+
+    const res = await fetch(
+
+      `https://api.cloudinary.com/v1_1/dprtb7jzl/auto/upload`,
+      {
+        method: "POST",
+        body: formData
+      }
+
+    );
+
+    const uploadData = await res.json();
+
+    await supabase
+      .from("media")
+      .insert([
+
+        {
+          event_id: eventId,
+          file_url: uploadData.secure_url,
+          file_size: file.size,
+          approved: false
+        }
+
+      ]);
+
+    setUploading(false);
+
+    alert("Uploaded");
+
+  }
 
 
-  const { data: media } = await supabase
-    .from("media")
-    .select("file_size")
-    .eq("event_id", eventId);
+  if (expired) {
 
+    return (
 
-  const used = (media || []).reduce(
-    (sum, item) => sum + Number(item.file_size || 0),
-    0
-  );
+      <main className="min-h-screen bg-white flex items-center justify-center">
 
-  const limit = event.storage_limit_gb * 1024 * 1024 * 1024;
+        <p className="text-gray-500">
+          This event has expired
+        </p>
 
-  if (used + file.size > limit) {
+      </main>
 
-    alert("Storage limit reached");
+    );
 
-    return;
-
-  }}
-
-  // continue upload below
-
+  }
 
 
   return (
 
     <main className="min-h-screen bg-white">
 
-      <div className="max-w-md mx-auto px-4 py-6 text-gray-700">
+      <div className="max-w-md mx-auto px-4 py-6 text-gray-800">
 
+
+        {/* Event Header */}
+
+        {event && (
+
+          <div className="mb-6">
+
+            <h1 className="text-xl font-semibold">
+
+              {event.name}
+
+            </h1>
+
+            <p className="text-xs text-gray-500">
+
+              Upload photos • {daysLeft()} days left
+
+            </p>
+
+          </div>
+
+        )}
+
+
+        {/* Attendee form */}
 
         {!ready && (
 
           <div className="space-y-4">
 
-            <h1 className="text-xl font-semibold">
-
-              Enter Your Details
-
-            </h1>
-
-
             <input
-              placeholder="Name"
+              placeholder="Your name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full border rounded-lg px-4 py-3 text-gray-700"
+              onChange={(e) =>
+                setName(e.target.value)
+              }
+              className="w-full border rounded-lg px-4 py-3"
             />
-
 
             <input
-              placeholder="Phone"
+              placeholder="Phone number"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full border rounded-lg px-4 py-3 text-gray-700"
+              onChange={(e) =>
+                setPhone(e.target.value)
+              }
+              className="w-full border rounded-lg px-4 py-3"
             />
-
 
             <button
               onClick={continueToUpload}
-              className="w-full bg-black text-gray-700 py-3 rounded-lg"
+              className="w-full bg-black text-white py-3 rounded-lg"
             >
+
               Continue
+
             </button>
 
           </div>
@@ -167,14 +258,15 @@ export default function EventUploadPage() {
         )}
 
 
+        {/* Upload */}
+
         {ready && (
 
           <div>
 
-            <h1 className="text-xl font-semibold mb-4 text-gray-700" >
-              Upload Photos
-            </h1>
-
+            <h2 className="font-medium mb-4">
+              Select photo or video
+            </h2>
 
             <input
               type="file"
@@ -182,11 +274,14 @@ export default function EventUploadPage() {
               className="w-full"
             />
 
-
             {uploading && (
-              <p className="mt-4 text-sm ">
+
+              <p className="text-sm mt-3 text-gray-500">
+
                 Uploading...
+
               </p>
+
             )}
 
           </div>

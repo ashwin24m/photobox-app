@@ -1,8 +1,19 @@
 import "./globals.css";
+import { Playfair_Display, Inter } from "next/font/google";
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata = {
   title: "PhotoBox",
-  description: "Private event photo sharing",
+  description: "Private event photo sharing, beautifully curated.",
 };
 
 export default function RootLayout({
@@ -10,35 +21,14 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   return (
-
-    <html lang="en">
-
-      <body>
-
-        <header className="border-b">
-
-          <div className="max-w-md mx-auto px-4 py-3 flex justify-between">
-
-            <a href="/" className="font-medium">
-              PhotoBox
-            </a>
-
-            <a href="/events" className="text-sm text-gray-500">
-              Dashboard
-            </a>
-
-          </div>
-
-        </header>
-
+    <html
+      lang="en"
+      className={`${playfair.variable} ${inter.variable}`}
+    >
+      <body className="bg-[#0A0A0B] text-white font-[var(--font-inter)]">
         {children}
-
       </body>
-
     </html>
-
   );
-
 }

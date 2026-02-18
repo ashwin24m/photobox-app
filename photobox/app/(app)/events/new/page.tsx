@@ -1,103 +1,99 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 
-export default function NewEventPage() {
+export default function CreateEvent() {
 
-  const router = useRouter();
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-
-  async function createEvent() {
-
-    if (!name) {
-      alert("Enter event name");
-      return;
-    }
-
-    setLoading(true);
-
-    const eventCode = Math.random().toString(36).substring(2, 8);
-
-    const { data, error } = await supabase
-      .from("events")
-      .insert([
-  {
-    name: name,
-    description: description,
-    event_code: eventCode,
-    storage_limit_gb: 15,
-    expiry_date: new Date(
-      Date.now() + 30 * 24 * 60 * 60 * 1000
-    ),
-  },
-])
-
-      .select()
-      .single();
-
-    setLoading(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert("Event created");
-
-    router.push("/events");
-
-  }
-
+  const [plan, setPlan] = useState("classic");
 
   return (
 
-    <main className="min-h-screen bg-white">
-
-      <div className="max-w-md mx-auto px-4 py-6">
-
-        <h2 className="text-xl font-semibold mb-6 text-gray-700">
-          Create New Event
-        </h2>
+    <main className="max-w-3xl mx-auto py-20 px-6">
 
 
-        <div className="space-y-4">
+      <h1 className="text-4xl font-[var(--font-playfair)] mb-10">
 
-          <input
-            type="text"
-            placeholder="Event Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3 text-gray-700"
-          />
+        Create New Event
+
+      </h1>
 
 
-          <textarea
-            placeholder="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full border rounded-lg px-4 py-3 text-gray-700"
-          />
+      {/* Event Name */}
+
+      <input
+        placeholder="Event Name"
+        className="w-full mb-4 p-4 bg-white/5 border border-white/10 rounded-lg"
+      />
+
+
+      {/* Date */}
+
+      <input
+        type="date"
+        className="w-full mb-4 p-4 bg-white/5 border border-white/10 rounded-lg"
+      />
+
+
+      {/* Plan Selection */}
+
+      <div className="mb-10">
+
+        <div className="mb-4">
+
+          Select Plan
+
+        </div>
+
+
+        <div className="grid grid-cols-3 gap-4">
 
 
           <button
-            onClick={createEvent}
-            className="w-full bg-black text-white py-3 rounded-lg"
+            onClick={() => setPlan("starter")}
+            className={`p-4 border rounded ${
+              plan === "starter" && "border-[#C6A15B]"
+            }`}
           >
-
-            {loading ? "Creating..." : "Create Event"}
-
+            ₹499
           </button>
+
+
+          <button
+            onClick={() => setPlan("classic")}
+            className={`p-4 border rounded ${
+              plan === "classic" && "border-[#C6A15B]"
+            }`}
+          >
+            ₹999
+          </button>
+
+
+          <button
+            onClick={() => setPlan("luxury")}
+            className={`p-4 border rounded ${
+              plan === "luxury" && "border-[#C6A15B]"
+            }`}
+          >
+            ₹1999
+          </button>
+
 
         </div>
 
       </div>
+
+
+
+      {/* Payment Button */}
+
+
+      <button className="w-full bg-[#C6A15B] text-black p-4 rounded-lg">
+
+        Continue to Payment
+
+      </button>
+
+
 
     </main>
 
