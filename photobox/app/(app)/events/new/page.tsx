@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+
 import { useRouter } from "next/navigation";
 
 export default function CreateEventPage() {
