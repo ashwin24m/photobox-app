@@ -5,171 +5,115 @@ import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 
 type Event = {
-
   id: string;
-
   name: string;
-
   host_name: string;
-
   event_date: string;
-
-  guest_limit: number;
-
-  storage_limit_gb: number;
-
-  validity_days: number;
-
   event_code: string;
-
-  payment_status: string;
-
-  created_at: string;
-
+  storage_limit_gb: number;
+  validity_days: number;
+  uploads_enabled: boolean;
+  downloads_enabled: boolean;
 };
 
-export default function EventsPage() {
+type Media = {
+  event_code: string;
+  file_type: string;
+  file_size: number;
+  uploader_name: string | null;
+  created_at: string;
+};
+
+export default function Dashboard() {
 
   const supabase = getSupabase();
 
   const [events, setEvents] = useState<Event[]>([]);
+  const [media, setMedia] = useState<Media[]>([]);
+  const [user, setUser] = useState<any>();
 
-  const [loading, setLoading] = useState(true);
+useEffect(() => {
+
+  checkUser();
+
+}, []);
+
+
+async function checkUser() {
+
+  const {
+
+    data: { user }
+
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+
+    location.href = "/login";
+
+    return;
+
+  }
+
+  setUser(user);
+
+}
 
 
 
   useEffect(() => {
 
-    loadEvents();
+    load();
+
+    const interval = setInterval(load, 10000);
+
+    return () => clearInterval(interval);
 
   }, []);
 
+  async function load() {
+
+const { data: e } = await supabase
+.from("events")
+.select("*")
+.eq("host_id", user.id)
+.order("event_date", { ascending: false });
 
 
 
-  async function loadEvents() {
-
-    const { data, error } = await supabase
-
-      .from("events")
-
-      .select("*")
-
-      .order("created_at", { ascending: false });
+    const { data: m } = await supabase
+  .from("media")
+  .select("*")
+  .order("created_at", { ascending: false });
 
 
-
-    if (error) {
-
-      console.error(error);
-
-    } else {
-
-      setEvents(data || []);
-
-    }
-
-
-    setLoading(false);
+    setEvents(e || []);
+    setMedia(m || []);
 
   }
 
-
-
-
   return (
 
-    <main className="min-h-screen bg-[#0A0A0B] text-white">
+    <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+      <Header />
+
+   {events
+  .sort((a, b) =>
+    new Date(b.event_date).getTime() -
+    new Date(a.event_date).getTime()
+  )
+  .map(event => (
 
 
-      <div className="max-w-6xl mx-auto px-8 py-16">
+        <EventCard
+          key={event.id}
+          event={event}
+          media={media.filter(m => m.event_code === event.event_code)}
+          reload={load}
+        />
 
-
-        {/* Header */}
-
-
-        <div className="flex justify-between items-center mb-12">
-
-
-          <div>
-
-
-            <h1 className="text-5xl font-[var(--font-playfair)]">
-
-              Your Events
-
-            </h1>
-
-
-            <p className="text-white/60 mt-2">
-
-              Manage and access your galleries
-
-            </p>
-
-
-          </div>
-
-
-
-          <Link
-            href="/events/new"
-            className="px-6 py-3 rounded-lg bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black font-semibold"
-          >
-
-            Create Event
-
-          </Link>
-
-
-        </div>
-
-
-
-
-        {/* Content */}
-
-
-
-        {loading && (
-
-          <div className="text-white/40">
-
-            Loading events...
-
-          </div>
-
-        )}
-
-
-
-        {!loading && events.length === 0 && (
-
-          <div className="text-white/40">
-
-            No events created yet
-
-          </div>
-
-        )}
-
-
-
-        <div className="grid gap-6">
-
-
-          {events.map((event) => (
-
-            <EventCard key={event.id} event={event} />
-
-          ))}
-
-
-        </div>
-
-
-      </div>
-
+      ))}
 
     </main>
 
@@ -177,147 +121,329 @@ export default function EventsPage() {
 
 }
 
-
-
-
-
-
-function EventCard({ event }: { event: Event }) {
-
-
-  const eventDate = new Date(event.event_date).toLocaleDateString();
-
+function Header() {
 
   return (
 
-    <div className="p-6 rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl">
+    <div className="flex justify-between">
 
+      <div>
 
-      <div className="flex justify-between items-start">
+        <div className="text-3xl font-[var(--font-playfair)]">
+          Control Room
+        </div>
 
+        <div className="text-white/50 text-sm">
+          Live event telemetry
+        </div>
 
-        {/* Left */}
+      </div>
 
+      <Link
+        href="/events/new"
+        className="px-4 py-2 rounded-lg bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black"
+      >
+        Create Event
+      </Link>
+
+    </div>
+
+  );
+
+}
+
+function EventCard({
+  event,
+  media,
+  reload
+}: {
+  event: Event;
+  media: Media[];
+  reload: () => void;
+}) {
+
+  const supabase = getSupabase();
+
+  async function toggle(field: "uploads_enabled" | "downloads_enabled") {
+
+    await supabase
+      .from("events")
+      .update({
+        [field]: !event[field]
+      })
+      .eq("id", event.id);
+
+    reload();
+
+  }
+
+  const storageBytes = media.reduce((s, m) => s + (m.file_size || 0), 0);
+
+  const storageGB = storageBytes / 1024 / 1024 / 1024;
+
+  const percent = Math.min(
+    100,
+    (storageGB / event.storage_limit_gb) * 100
+  );
+
+  const photos = media.filter(m => m.file_type === "photo").length;
+
+  const videos = media.filter(m => m.file_type === "video").length;
+
+  const guests = new Set(media.map(m => m.uploader_name)).size;
+
+  const lastUpload = media
+    .map(m => new Date(m.created_at).getTime())
+    .sort()
+    .reverse()[0];
+
+  const live = Date.now() - lastUpload < 120000;
+
+  const expiry = expiryDays(event);
+
+  return (
+
+    <div className="border border-white/10 rounded-xl p-5 bg-gradient-to-br from-white/5 to-transparent space-y-4">
+
+      <div className="flex justify-between items-center">
 
         <div>
 
-
-          <div className="text-2xl font-semibold mb-1">
-
+          <div className="text-xl font-semibold">
             {event.name}
-
           </div>
 
-
-          <div className="text-white/60 text-sm">
-
-            Host: {event.host_name}
-
+          <div className="text-white/40 text-sm">
+            {event.host_name}
           </div>
-
-
-          <div className="text-white/60 text-sm">
-
-            Event Date: {eventDate}
-
-          </div>
-
-
-          <div className="text-white/60 text-sm">
-
-            Guests: Up to {event.guest_limit}
-
-          </div>
-
-
-          <div className="text-white/60 text-sm">
-
-            Storage: {event.storage_limit_gb} GB
-
-          </div>
-
-
-
-          <div className="mt-2">
-
-
-            {event.payment_status === "pending" && (
-
-              <span className="text-yellow-400 text-sm">
-
-                Payment Pending
-
-              </span>
-
-            )}
-
-
-            {event.payment_status === "paid" && (
-
-              <span className="text-green-400 text-sm">
-
-                Active
-
-              </span>
-
-            )}
-
-
-          </div>
-
 
         </div>
 
-
-
-
-        {/* Right */}
-
-
-
-        <div className="flex flex-col gap-3">
-
-
-          <Link
-            href={`/events/${event.id}`}
-            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
-          >
-
-            Manage
-
-          </Link>
-
-
-
-          <Link
-            href={`/e/${event.event_code}`}
-            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
-          >
-
-            Upload Link
-
-          </Link>
-
-
-
-          <Link
-            href={`/g/${event.event_code}`}
-            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
-          >
-
-            Gallery
-
-          </Link>
-
-
-        </div>
-
+        <Link
+          href={`/events/${event.id}`}
+          className="px-3 py-1 border border-white/20 rounded-lg text-sm"
+        >
+          Open
+        </Link>
 
       </div>
 
 
+      {/* NEW CONTROL SWITCHES */}
+
+      <div className="flex gap-6 text-xs">
+
+        <Toggle
+          label="Uploads"
+          enabled={event.uploads_enabled}
+          onClick={() => toggle("uploads_enabled")}
+        />
+
+        <Toggle
+          label="Downloads"
+          enabled={event.downloads_enabled}
+          onClick={() => toggle("downloads_enabled")}
+        />
+
+      </div>
+
+
+      <div className="grid grid-cols-2 gap-4">
+
+        <StorageRing percent={percent} value={storageGB} limit={event.storage_limit_gb} />
+
+        <div className="space-y-2">
+
+          <Stat label="Photos" value={photos} color="#60A5FA" />
+
+          <Stat label="Videos" value={videos} color="#A78BFA" />
+
+          <Stat label="Guests" value={guests} color="#34D399" />
+
+          <Stat label="Expiry" value={`${expiry}d`} color="#FBBF24" />
+
+        </div>
+
+      </div>
+
+
+      <div className="flex justify-between text-xs">
+
+        <div className={live ? "text-green-400" : "text-white/40"}>
+
+          {live ? "● Live Uploading" : "Idle"}
+
+        </div>
+
+        <div className="text-white/40">
+
+          {expiry} days remaining
+
+        </div>
+
+      </div>
+
+      <ActivityTimeline media={media} />
+
     </div>
 
+  );
+
+}
+
+function Toggle({
+  label,
+  enabled,
+  onClick
+}: any) {
+
+  return (
+
+    <div
+      onClick={onClick}
+      className="flex items-center gap-2 cursor-pointer select-none"
+    >
+
+      <div className="text-white/50">
+        {label}
+      </div>
+
+      <div
+        className={`w-10 h-5 rounded-full transition ${
+          enabled
+            ? "bg-gradient-to-r from-[#C6A15B] to-[#E7D3A3]"
+            : "bg-white/20"
+        }`}
+      >
+
+        <div
+          className={`w-4 h-4 bg-black rounded-full mt-[2px] transition ${
+            enabled ? "ml-5" : "ml-1"
+          }`}
+        />
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
+function StorageRing({ percent, value, limit }: any) {
+
+  const radius = 42;
+
+  const stroke = 6;
+
+  const norm = radius * 2 * Math.PI;
+
+  const offset = norm - percent / 100 * norm;
+
+  return (
+
+    <div className="flex flex-col items-center">
+
+      <svg width="100" height="100">
+
+        <circle stroke="#1f2937" fill="transparent" strokeWidth={stroke} r={radius} cx="50" cy="50" />
+
+        <circle
+          stroke="url(#grad)"
+          fill="transparent"
+          strokeWidth={stroke}
+          strokeDasharray={norm}
+          strokeDashoffset={offset}
+          r={radius}
+          cx="50"
+          cy="50"
+          strokeLinecap="round"
+        />
+
+        <defs>
+
+          <linearGradient id="grad">
+
+            <stop offset="0%" stopColor="#C6A15B" />
+
+            <stop offset="100%" stopColor="#E7D3A3" />
+
+          </linearGradient>
+
+        </defs>
+
+      </svg>
+
+      <div className="text-xs text-white/50">
+        {value.toFixed(1)} / {limit} GB
+      </div>
+
+    </div>
+
+  );
+
+}
+
+function Stat({ label, value, color }: any) {
+
+  return (
+
+    <div className="flex justify-between text-sm">
+
+      <span className="text-white/50">{label}</span>
+
+      <span style={{ color }}>{value}</span>
+
+    </div>
+
+  );
+
+}
+
+function ActivityTimeline({ media }: { media: Media[] }) {
+
+  const latest = media
+    .sort((a, b) =>
+      new Date(b.created_at).getTime() -
+      new Date(a.created_at).getTime()
+    )
+    .slice(0, 4);
+
+  return (
+
+    <div>
+
+      <div className="text-xs text-white/50 mb-2">
+        Recent Activity
+      </div>
+
+      <div className="space-y-1">
+
+        {latest.map((m, i) => (
+
+          <div key={i} className="text-xs text-white/40">
+            {m.uploader_name || "Guest"} uploaded {m.file_type}
+          </div>
+
+        ))}
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
+function expiryDays(event: Event) {
+
+  const start = new Date(event.event_date).getTime();
+
+  const end = start + event.validity_days * 86400000;
+
+  return Math.max(
+    0,
+    Math.floor((end - Date.now()) / 86400000)
   );
 
 }

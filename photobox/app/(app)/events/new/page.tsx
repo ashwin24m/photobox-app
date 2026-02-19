@@ -64,11 +64,16 @@ export default function CreateEventPage() {
 
 
 
-    const { data, error } = await supabase
+   const {
 
-      .from("events")
+  data: { user }
 
-      .insert({
+} = await supabase.auth.getUser();
+
+await supabase.from("events").insert({
+
+  host_id: user.id,
+
 
         name: eventName,
 
@@ -122,7 +127,7 @@ export default function CreateEventPage() {
 
   return (
 
-    <main className="min-h-screen bg-[#0A0A0B] text-white">
+    <main className="min-h-screen">
 
 
       <div className="max-w-3xl mx-auto px-6 py-20">

@@ -1,295 +1,507 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getSupabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getSupabase } from "@/lib/supabase";
+import Image from "next/image";
 
-const supabase = getSupabase();
+const CLOUD = "dprtb7jzl";
+const PRESET = "photobox_unsigned";
 
-export default function EventUploadPage() {
+type UploadItem = {
+  id: string;
+  file: File;
+  progress: number;
+  status: "uploading" | "done" | "failed";
+  type: "photo" | "video";
+};
 
-  const params = useParams();
-  const eventCode = params.code as string;
+export default function UploadPage() {
 
-  const [event, setEvent] = useState<any>(null);
+  const { code } = useParams();
+
+  const supabase = getSupabase();
+
+  const [event, setEvent] = useState<any>();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [identified, setIdentified] = useState(false);
 
-  const [eventId, setEventId] = useState<string | null>(null);
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
 
-  const [uploading, setUploading] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [myMedia, setMyMedia] = useState<any[]>([]);
+  const [activity, setActivity] = useState<any[]>([]);
+  const [guestCount, setGuestCount] = useState(0);
 
-  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
 
-    loadEvent();
+    init();
 
   }, []);
 
-  async function loadEvent() {
+
+
+  async function init() {
 
     const { data } = await supabase
+
       .from("events")
       .select("*")
-      .eq("event_code", eventCode)
+      .eq("event_code", code)
       .single();
-
-    if (!data) return;
-
-    if (
-      data.expiry_date &&
-      new Date(data.expiry_date).getTime() < Date.now()
-    ) {
-
-      setExpired(true);
-      return;
-
-    }
 
     setEvent(data);
 
-  }
 
-  function daysLeft() {
+    const savedName = localStorage.getItem(`pb_name_${code}`);
+    const savedPhone = localStorage.getItem(`pb_phone_${code}`);
 
-    if (!event?.expiry_date) return 0;
+    if (savedName && savedPhone) {
 
-    return Math.max(
-      0,
-      Math.ceil(
-        (
-          new Date(event.expiry_date).getTime()
-          -
-          Date.now()
-        )
-        /
-        (1000 * 60 * 60 * 24)
-      )
-    );
+      setName(savedName);
+      setPhone(savedPhone);
+      setIdentified(true);
 
-  }
-
-  async function continueToUpload() {
-
-    if (!name || !phone || !event) {
-
-      alert("Enter name and phone");
-      return;
+      loadMyMedia(savedName, savedPhone);
 
     }
 
-    setEventId(event.id);
+    loadActivity();
+    subscribeRealtime();
 
-    await supabase
-      .from("attendees")
-      .insert([
+  }
+
+
+
+  function subscribeRealtime() {
+
+    supabase
+
+      .channel("media_live")
+
+      .on(
+
+        "postgres_changes",
+
         {
-          event_id: event.id,
-          name,
-          phone
-        }
-      ]);
+          event: "INSERT",
+          schema: "public",
+          table: "media",
+        },
 
-    setReady(true);
+        payload => {
+
+          const m = payload.new;
+
+          loadActivity();
+
+          if (
+
+            m.uploader_name === name &&
+            m.uploader_phone === phone
+
+          ) {
+
+            loadMyMedia(name, phone);
+
+          }
+
+        }
+
+      )
+
+      .subscribe();
 
   }
 
 
-  async function handleUpload(e: any) {
 
-    if (!eventId) return;
+  async function loadMyMedia(n: string, p: string) {
 
-    const file = e.target.files[0];
-    if (!file) return;
+    const { data } = await supabase
 
-    setUploading(true);
-
-    // storage check
-
-    const { data: media } = await supabase
       .from("media")
-      .select("file_size")
-      .eq("event_id", eventId);
 
-    const used =
-      (media || []).reduce(
-        (sum, m) => sum + Number(m.file_size || 0),
-        0
-      );
+      .select("*")
 
-    const limit =
-      event.storage_limit_gb * 1024 * 1024 * 1024;
+      .eq("event_code", code)
 
-    if (used + file.size > limit) {
+      .eq("uploader_name", n)
 
-      alert("Storage limit reached");
-      setUploading(false);
-      return;
+      .eq("uploader_phone", p)
 
-    }
+      .order("created_at", { ascending: false });
 
-    // upload to cloudinary
+    setMyMedia(data || []);
 
-    const formData = new FormData();
+  }
 
-    formData.append("file", file);
-    formData.append(
-      "upload_preset",
-      "photobox"
+
+
+  async function loadActivity() {
+
+    const { data } = await supabase
+
+      .from("media")
+
+      .select("*")
+
+      .eq("event_code", code)
+
+      .order("created_at", { ascending: false })
+
+      .limit(10);
+
+    setActivity(data || []);
+
+    const guests = new Set(
+
+      (data || []).map(m => m.uploader_phone)
+
     );
 
-    const res = await fetch(
+    setGuestCount(guests.size);
 
-      `https://api.cloudinary.com/v1_1/dprtb7jzl/auto/upload`,
+  }
+
+
+
+  function identify() {
+
+    localStorage.setItem(`pb_name_${code}`, name);
+    localStorage.setItem(`pb_phone_${code}`, phone);
+
+    setIdentified(true);
+
+    loadMyMedia(name, phone);
+
+  }
+
+
+
+  function handleFiles(e: any) {
+
+    const files = Array.from(e.target.files);
+
+    files.forEach(file => startUpload(file));
+
+  }
+
+
+
+  function startUpload(file: File) {
+
+    const id = crypto.randomUUID();
+
+    const type = file.type.startsWith("video")
+      ? "video"
+      : "photo";
+
+
+    setUploads(prev => [
+
+      ...prev,
+
       {
-        method: "POST",
-        body: formData
+        id,
+        file,
+        progress: 0,
+        status: "uploading",
+        type
       }
 
+    ]);
+
+
+    const xhr = new XMLHttpRequest();
+
+    const form = new FormData();
+
+    form.append("file", file);
+    form.append("upload_preset", PRESET);
+
+
+    xhr.open(
+      "POST",
+      `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`
     );
 
-    const uploadData = await res.json();
 
-    await supabase
-      .from("media")
-      .insert([
+    xhr.upload.onprogress = e => {
 
-        {
-          event_id: eventId,
-          file_url: uploadData.secure_url,
-          file_size: file.size,
-          approved: false
-        }
+      const percent = (e.loaded / e.total) * 100;
 
-      ]);
+      setUploads(prev =>
+        prev.map(u =>
+          u.id === id
+            ? { ...u, progress: percent }
+            : u
+        )
+      );
 
-    setUploading(false);
+    };
 
-    alert("Uploaded");
+
+    xhr.onload = async () => {
+
+      if (xhr.status !== 200) {
+
+        setUploads(prev =>
+          prev.map(u =>
+            u.id === id
+              ? { ...u, status: "failed" }
+              : u
+          )
+        );
+
+        return;
+      }
+
+
+      const res = JSON.parse(xhr.response);
+
+
+      await supabase.from("media").insert({
+
+        event_code: code,
+
+        file_url: res.secure_url,
+
+        file_type:
+          res.resource_type === "video"
+            ? "video"
+            : "photo",
+
+        file_size: res.bytes,
+
+        uploader_name: name,
+
+        uploader_phone: phone,
+
+        status: "pending",
+
+      });
+
+
+      setUploads(prev =>
+        prev.map(u =>
+          u.id === id
+            ? { ...u, status: "done", progress: 100 }
+            : u
+        )
+      );
+
+    };
+
+
+    xhr.onerror = () => {
+
+      setUploads(prev =>
+        prev.map(u =>
+          u.id === id
+            ? { ...u, status: "failed" }
+            : u
+        )
+      );
+
+    };
+
+
+    xhr.send(form);
 
   }
 
 
-  if (expired) {
 
-    return (
+  if (!event) return null;
 
-      <main className="min-h-screen bg-white flex items-center justify-center">
 
-        <p className="text-gray-500">
-          This event has expired
-        </p>
 
-      </main>
+  const done = uploads.filter(u => u.status === "done");
 
-    );
+  const photos = done.filter(u => u.type === "photo");
 
-  }
+  const videos = done.filter(u => u.type === "video");
+
 
 
   return (
 
-    <main className="min-h-screen bg-white">
-
-      <div className="max-w-md mx-auto px-4 py-6 text-gray-800">
+    <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
 
 
-        {/* Event Header */}
 
-        {event && (
+      <div>
 
-          <div className="mb-6">
+        <div className="text-3xl font-[var(--font-playfair)]">
 
-            <h1 className="text-xl font-semibold">
+          {event.name}
 
-              {event.name}
+        </div>
 
-            </h1>
+        <div className="text-[#C6A15B] text-sm">
 
-            <p className="text-xs text-gray-500">
+          {guestCount} guests contributing
 
-              Upload photos • {daysLeft()} days left
-
-            </p>
-
-          </div>
-
-        )}
-
-
-        {/* Attendee form */}
-
-        {!ready && (
-
-          <div className="space-y-4">
-
-            <input
-              placeholder="Your name"
-              value={name}
-              onChange={(e) =>
-                setName(e.target.value)
-              }
-              className="w-full border rounded-lg px-4 py-3"
-            />
-
-            <input
-              placeholder="Phone number"
-              value={phone}
-              onChange={(e) =>
-                setPhone(e.target.value)
-              }
-              className="w-full border rounded-lg px-4 py-3"
-            />
-
-            <button
-              onClick={continueToUpload}
-              className="w-full bg-black text-white py-3 rounded-lg"
-            >
-
-              Continue
-
-            </button>
-
-          </div>
-
-        )}
-
-
-        {/* Upload */}
-
-        {ready && (
-
-          <div>
-
-            <h2 className="font-medium mb-4">
-              Select photo or video
-            </h2>
-
-            <input
-              type="file"
-              onChange={handleUpload}
-              className="w-full"
-            />
-
-            {uploading && (
-
-              <p className="text-sm mt-3 text-gray-500">
-
-                Uploading...
-
-              </p>
-
-            )}
-
-          </div>
-
-        )}
-
+        </div>
 
       </div>
+
+
+
+      {!identified && (
+
+        <div className="bg-white/5 border border-white/10 p-6 rounded-xl space-y-4">
+
+          <input
+
+            placeholder="Your Name"
+
+            value={name}
+
+            onChange={e => setName(e.target.value)}
+
+            className="w-full p-3 bg-black/30 rounded"
+
+          />
+
+          <input
+
+            placeholder="Phone Number"
+
+            value={phone}
+
+            onChange={e => setPhone(e.target.value)}
+
+            className="w-full p-3 bg-black/30 rounded"
+
+          />
+
+          <button
+
+            onClick={identify}
+
+            className="w-full py-3 bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black rounded-xl"
+
+          >
+
+            Continue
+
+          </button>
+
+        </div>
+
+      )}
+
+
+
+      {identified && (
+
+        <>
+
+          <label className="block border border-[#C6A15B]/40 rounded-xl p-10 text-center cursor-pointer hover:bg-white/5">
+
+            Upload Photos or Videos
+
+            <input
+
+              type="file"
+
+              multiple
+
+              accept="image/*,video/*"
+
+              onChange={handleFiles}
+
+              className="hidden"
+
+            />
+
+          </label>
+
+
+
+          {uploads.map(u => (
+
+            <div key={u.id}>
+
+              {u.file.name}
+
+              <div className="h-2 bg-white/10 rounded">
+
+                <div
+
+                  style={{ width: `${u.progress}%` }}
+
+                  className="h-full bg-[#C6A15B]"
+
+                />
+
+              </div>
+
+            </div>
+
+          ))}
+
+
+
+          {done.length > 0 && (
+
+            <div className="text-[#C6A15B]">
+
+              {done.length} files uploaded
+
+              ({photos.length} photos, {videos.length} videos)
+
+            </div>
+
+          )}
+
+
+
+          <div className="grid grid-cols-3 gap-3">
+
+            {myMedia.map((m, i) => (
+
+              <div key={i} className="relative aspect-square">
+
+                {m.file_type === "video" ? (
+
+                  <video src={m.file_url} controls />
+
+                ) : (
+
+                  <Image
+
+                    src={m.file_url}
+
+                    alt=""
+
+                    fill
+
+                    sizes="33vw"
+
+                    className="object-cover rounded"
+
+                  />
+
+                )}
+
+              </div>
+
+            ))}
+
+          </div>
+
+
+
+        </>
+
+      )}
+
+
 
     </main>
 

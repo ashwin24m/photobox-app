@@ -1,214 +1,302 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase";
 import { useParams } from "next/navigation";
+import { getSupabase } from "@/lib/supabase";
+import Image from "next/image";
 
-const supabase = getSupabase();
+type Event = {
+  id: string;
+  name: string;
+  host_name: string;
+  event_date: string;
+  event_code: string;
+  storage_limit_gb: number;
+  guest_limit: number;
+  payment_status: string;
+};
 
-export default function EventDetailPage() {
+type Media = {
+  id: string;
+  file_url: string;
+  status: string;
+};
 
-  const params = useParams();
-  const eventId = params.id as string;
+export default function EventControlPage() {
 
-  const [event, setEvent] = useState<any>(null);
-  const [media, setMedia] = useState<any[]>([]);
-  const [activeIndex, setActiveIndex] =
-    useState<number | null>(null);
+  const { id } = useParams();
 
-    const [publishing, setPublishing] = useState(false);
+  const supabase = getSupabase();
 
-  const [storageUsed, setStorageUsed] =
-    useState(0);
+  const [event, setEvent] = useState<Event | null>(null);
+
+  const [media, setMedia] = useState<Media[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
 
 
   useEffect(() => {
 
-    load();
+    loadEvent();
 
   }, []);
 
 
-  async function load() {
 
-    const { data: eventData } =
-      await supabase
-        .from("events")
-        .select("*")
-        .eq("id", eventId)
-        .single();
+
+  async function loadEvent() {
+
+    const { data: eventData } = await supabase
+
+      .from("events")
+
+      .select("*")
+
+      .eq("id", id)
+
+      .single();
+
+
 
     setEvent(eventData);
 
 
-    const { data: mediaData } =
-      await supabase
+
+    if (eventData) {
+
+      const { data: mediaData } = await supabase
+
         .from("media")
+
         .select("*")
-        .eq("event_id", eventId)
-        .order("created_at", {
-          ascending: false
-        });
 
-    setMedia(mediaData || []);
+        .eq("event_code", eventData.event_code)
+
+        .order("created_at", { ascending: false });
 
 
-    const total =
-      (mediaData || []).reduce(
 
-        (sum, item) =>
-          sum + Number(item.file_size || 0),
+      setMedia(mediaData || []);
 
-        0
+    }
 
-      );
 
-    setStorageUsed(total);
+
+    setLoading(false);
 
   }
 
 
-  async function approve(id: string) {
+
+
+  async function approveMedia(mediaId: string) {
 
     await supabase
+
       .from("media")
-      .update({ approved: true })
-      .eq("id", id);
 
-    load();
+      .update({ status: "approved" })
 
-  }
+      .eq("id", mediaId);
 
 
-  function formatMB(bytes: number) {
 
-    return (bytes / 1024 / 1024)
-      .toFixed(1);
+    loadEvent();
 
   }
 
 
-  async function togglePublish() {
 
-  setPublishing(true);
 
-  await supabase
-    .from("events")
-    .update({
-      is_published: !event.is_published
-    })
-    .eq("id", eventId);
+  async function deleteMedia(mediaId: string) {
 
-  load();
+    await supabase
 
-  setPublishing(false);
+      .from("media")
 
-}
+      .delete()
+
+      .eq("id", mediaId);
+
+
+
+    loadEvent();
+
+  }
+
+
+
+
+  if (loading) {
+
+    return (
+
+      <main className="max-w-6xl mx-auto px-4 py-10">
+
+        Loading...
+
+      </main>
+
+    );
+
+  }
+
+
+
+
+  if (!event) {
+
+    return (
+
+      <main className="max-w-6xl mx-auto px-4 py-10">
+
+        Event not found
+
+      </main>
+
+    );
+
+  }
+
+
+
+  const uploadLink = `${window.location.origin}/e/${event.event_code}`;
+
+  const galleryLink = `${window.location.origin}/g/${event.event_code}`;
+
 
 
 
   return (
 
-    <main className="min-h-screen bg-white">
-
-      <div className="max-w-md mx-auto px-4 py-6">
+    <main className="max-w-6xl mx-auto px-4 py-10">
 
 
-        {/* Event Header */}
 
-        <div className="mb-6">
+      {/* Header */}
 
-          <h1 className="text-xl font-semibold">
 
-            {event?.name}
 
-          </h1>
+      <div className="mb-8">
 
-          <p className="text-xs text-gray-500">
 
-            Storage used:
-            {" "}
-            {formatMB(storageUsed)} MB
+        <h1 className="text-3xl font-[var(--font-playfair)]">
 
-          </p>
+          {event.name}
 
-<button
-  onClick={togglePublish}
-  className="mt-3 w-full bg-black text-white py-2 rounded-lg text-sm"
->
+        </h1>
 
-  {event?.is_published
-    ? "Gallery Published"
-    : "Publish Gallery"}
 
-</button>
+        <div className="text-white/60 mt-2">
 
+          Host: {event.host_name}
 
         </div>
 
 
-        {/* Media Grid */}
-
-        <div className="grid grid-cols-2 gap-3">
-
-          {media.map((item, index) => {
-
-            const isVideo =
-              item.file_url.includes("/video/");
-
-            return (
-
-              <div key={item.id}>
+      </div>
 
 
-                <div
-
-                  onClick={() =>
-                    setActiveIndex(index)
-                  }
-
-                  className="cursor-pointer"
-
-                >
-
-                  {isVideo
-
-                    ?
-
-                    (
-
-                      <video
-                        src={item.file_url}
-                        className="rounded-lg w-full"
-                      />
-
-                    )
-
-                    :
-
-                    (
-
-                      <img
-                        src={item.file_url}
-                        className="rounded-lg w-full"
-                      />
-
-                    )
-
-                  }
-
-                </div>
 
 
-                {!item.approved && (
+      {/* Links */}
+
+
+
+      <div className="grid sm:grid-cols-2 gap-4 mb-8">
+
+
+        <LinkBox
+
+          title="Upload Link"
+
+          link={uploadLink}
+
+        />
+
+
+        <LinkBox
+
+          title="Gallery Link"
+
+          link={galleryLink}
+
+        />
+
+
+      </div>
+
+
+
+
+      {/* Media */}
+
+
+
+      <div>
+
+
+        <h2 className="text-xl mb-4">
+
+          Uploaded Media
+
+        </h2>
+
+
+
+        {media.length === 0 && (
+
+          <div className="text-white/40">
+
+            No uploads yet
+
+          </div>
+
+        )}
+
+
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+
+
+          {media.map((item) => (
+
+            <div
+
+              key={item.id}
+
+              className="border border-white/10 rounded-lg overflow-hidden"
+
+            >
+
+
+              <Image
+
+                src={item.file_url}
+
+                alt="media"
+
+                width={300}
+
+                height={300}
+
+                className="object-cover"
+
+              />
+
+
+
+              <div className="p-2 space-y-2">
+
+
+                {item.status !== "approved" && (
 
                   <button
 
-                    onClick={() =>
-                      approve(item.id)
-                    }
+                    onClick={() => approveMedia(item.id)}
 
-                    className="mt-1 w-full bg-black text-white text-xs py-1 rounded"
+                    className="w-full text-sm bg-green-600 py-1 rounded"
 
                   >
 
@@ -219,22 +307,27 @@ export default function EventDetailPage() {
                 )}
 
 
-                {item.approved && (
 
-                  <p className="text-xs text-green-600 mt-1">
+                <button
 
-                    Approved
+                  onClick={() => deleteMedia(item.id)}
 
-                  </p>
+                  className="w-full text-sm bg-red-600 py-1 rounded"
 
-                )}
+                >
+
+                  Delete
+
+                </button>
 
 
               </div>
 
-            );
 
-          })}
+            </div>
+
+          ))}
+
 
         </div>
 
@@ -242,63 +335,76 @@ export default function EventDetailPage() {
       </div>
 
 
-      {/* Fullscreen Viewer */}
-
-      {activeIndex !== null && (
-
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-
-
-          <button
-
-            onClick={() =>
-              setActiveIndex(null)
-            }
-
-            className="absolute top-6 right-6 text-white text-xl"
-
-          >
-
-            ✕
-
-          </button>
-
-
-          {media[activeIndex].file_url.includes("/video/")
-
-            ?
-
-            (
-
-              <video
-                src={media[activeIndex].file_url}
-                controls
-                autoPlay
-                className="max-h-full max-w-full"
-              />
-
-            )
-
-            :
-
-            (
-
-              <img
-                src={media[activeIndex].file_url}
-                className="max-h-full max-w-full"
-              />
-
-            )
-
-          }
-
-
-        </div>
-
-      )}
-
 
     </main>
+
+  );
+
+}
+
+
+
+
+
+
+function LinkBox({
+
+  title,
+
+  link,
+
+}: {
+
+  title: string;
+
+  link: string;
+
+}) {
+
+
+  async function copy() {
+
+    await navigator.clipboard.writeText(link);
+
+    alert("Copied");
+
+  }
+
+
+
+  return (
+
+    <div className="border border-white/10 rounded-lg p-4">
+
+
+      <div className="text-sm text-white/60">
+
+        {title}
+
+      </div>
+
+
+      <div className="text-sm mt-2 break-all">
+
+        {link}
+
+      </div>
+
+
+      <button
+
+        onClick={copy}
+
+        className="mt-3 px-3 py-1 border border-white/20 rounded text-sm"
+
+      >
+
+        Copy
+
+      </button>
+
+
+    </div>
 
   );
 

@@ -37,10 +37,10 @@ export default function HomePage() {
 
 
           <Link
-            href="/events"
+            href="/login"
             className="px-6 py-3 rounded-lg border border-[#C6A15B]/40 text-[#E7D3A3] hover:bg-[#C6A15B]/10 transition"
           >
-            Dashboard
+            Login
           </Link>
 
         </div>
