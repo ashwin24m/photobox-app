@@ -114,7 +114,12 @@ useEffect(() => {
 
     await supabase.auth.signOut();
 
-    location.href = "/login";
+    if (typeof window !== "undefined") {
+
+  window.location.href = "/login";
+
+}
+
 
   }
 
