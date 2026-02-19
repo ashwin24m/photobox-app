@@ -16,49 +16,38 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
 
-  const [signup, setSignup] = useState(false);
+  const [error, setError] = useState("");
 
 
 
-  async function handle() {
+  async function handleLogin() {
 
     setLoading(true);
 
-    if (signup) {
+    setError("");
 
-      const { error } = await supabase.auth.signUp({
 
-        email,
-        password
+    const { data, error } = await supabase.auth.signInWithPassword({
 
-      });
+      email: email.trim(),
 
-      if (!error) {
+      password: password.trim()
 
-        alert("Account created. Please login.");
+    });
 
-        setSignup(false);
 
-      }
+    if (error) {
 
-    } else {
+      setError(error.message);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      setLoading(false);
 
-        email,
-        password
-
-      });
-
-      if (!error) {
-
-        router.push("/events");
-
-      }
+      return;
 
     }
 
-    setLoading(false);
+
+    router.push("/events");
 
   }
 
@@ -66,81 +55,77 @@ export default function LoginPage() {
 
   return (
 
-    <main className="max-w-md mx-auto px-4 py-20">
-
-      <div className="text-3xl font-[var(--font-playfair)] mb-6">
-
-        {signup ? "Create Account" : "Login"}
-
-      </div>
+    <main className="max-w-md mx-auto px-4 py-20 space-y-6">
 
 
 
-      <div className="space-y-4">
+      <div className="text-3xl font-[var(--font-playfair)]">
 
-        <input
-
-          placeholder="Email"
-
-          value={email}
-
-          onChange={e => setEmail(e.target.value)}
-
-          className="w-full p-3 bg-black/30 border border-white/10 rounded"
-
-        />
-
-
-
-        <input
-
-          placeholder="Password"
-
-          type="password"
-
-          value={password}
-
-          onChange={e => setPassword(e.target.value)}
-
-          className="w-full p-3 bg-black/30 border border-white/10 rounded"
-
-        />
-
-
-
-        <button
-
-          onClick={handle}
-
-          disabled={loading}
-
-          className="w-full py-3 bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black rounded-xl"
-
-        >
-
-          {loading ? "Please wait..." : signup ? "Create Account" : "Login"}
-
-        </button>
-
-
-
-        <button
-
-          onClick={() => setSignup(!signup)}
-
-          className="text-white/50 text-sm"
-
-        >
-
-          {signup
-
-            ? "Already have account? Login"
-
-            : "Create new account"}
-
-        </button>
+        Login
 
       </div>
+
+
+
+      <input
+
+        type="email"
+
+        placeholder="Email"
+
+        value={email}
+
+        onChange={e => setEmail(e.target.value)}
+
+        className="w-full p-3 bg-black/30 border border-white/10 rounded-xl"
+
+      />
+
+
+
+      <input
+
+        type="password"
+
+        placeholder="Password"
+
+        value={password}
+
+        onChange={e => setPassword(e.target.value)}
+
+        className="w-full p-3 bg-black/30 border border-white/10 rounded-xl"
+
+      />
+
+
+
+      {error && (
+
+        <div className="text-red-400 text-sm">
+
+          {error}
+
+        </div>
+
+      )}
+
+
+
+      <button
+
+        onClick={handleLogin}
+
+        disabled={loading}
+
+        className="w-full py-3 rounded-xl bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black font-semibold"
+
+      >
+
+        {loading ? "Logging in..." : "Login"}
+
+      </button>
+
+
 
     </main>
 

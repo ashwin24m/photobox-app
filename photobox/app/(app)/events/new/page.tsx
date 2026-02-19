@@ -1,121 +1,237 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function CreateEventPage() {
 
-  const router = useRouter();
   const supabase = getSupabase();
+
+  const router = useRouter();
+
+  const [user, setUser] = useState<any>(null);
 
   const [loading, setLoading] = useState(false);
 
-  const [eventName, setEventName] = useState("");
-  const [hostName, setHostName] = useState("");
-  const [eventDate, setEventDate] = useState("");
+  const [checking, setChecking] = useState(true);
 
-  const [selectedPlan, setSelectedPlan] = useState("medium");
+  const [isNewUser, setIsNewUser] = useState(false);
 
 
 
-  const plans = {
+  const [form, setForm] = useState({
 
-    small: {
-      price: 499,
-      storage: 5,
-      guests: 100,
-      validity: 7,
-    },
+    name: "",
 
-    medium: {
-      price: 999,
-      storage: 15,
-      guests: 300,
-      validity: 30,
-    },
+    phone: "",
 
-    large: {
-      price: 1999,
-      storage: 50,
-      guests: 800,
-      validity: 90,
-    },
+    email: "",
 
-  };
+    password: "",
+
+    event_name: "",
+
+    event_date: "",
+
+  });
 
 
 
-  async function handleCreateEvent() {
+  useEffect(() => {
 
-    if (!eventName || !hostName || !eventDate) {
+    init();
 
-      alert("Please fill all details");
-      return;
+  }, []);
+
+
+
+
+  async function init() {
+
+    const {
+
+      data: { user }
+
+    } = await supabase.auth.getUser();
+
+
+
+    if (user) {
+
+      setUser(user);
+
+      await loadProfile(user.id);
+
+      setIsNewUser(false);
+
+    } else {
+
+      setIsNewUser(true);
 
     }
 
-    setLoading(true);
-
-    const plan = plans[selectedPlan as keyof typeof plans];
 
 
-    const eventCode = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+    setChecking(false);
+
+  }
 
 
 
-   const {
 
-  data: { user }
+  async function loadProfile(id: string) {
 
-} = await supabase.auth.getUser();
+    const { data } = await supabase
 
-await supabase.from("events").insert({
+      .from("profiles")
 
-  host_id: user.id,
+      .select("*")
 
-
-        name: eventName,
-
-        host_name: hostName,
-
-        event_date: eventDate,
-
-        plan: selectedPlan,
-
-        storage_limit_gb: plan.storage,
-
-        guest_limit: plan.guests,
-
-        validity_days: plan.validity,
-
-        event_code: eventCode,
-
-        payment_status: "pending",
-
-      })
-
-      .select()
+      .eq("id", id)
 
       .single();
 
 
 
-    setLoading(false);
+    if (data) {
+
+      setForm(prev => ({
+
+        ...prev,
+
+        name: data.name,
+
+        phone: data.phone,
+
+        email: data.email,
+
+      }));
+
+    }
+
+  }
 
 
 
-    if (error) {
 
-      alert("Error creating event");
-      console.error(error);
+  function handleChange(e: any) {
+
+    setForm({
+
+      ...form,
+
+      [e.target.name]: e.target.value
+
+    });
+
+  }
+
+
+
+
+  async function handleSubmit() {
+
+    setLoading(true);
+
+    let userId = user?.id;
+
+
+
+    // NEW USER SIGNUP
+
+    if (isNewUser) {
+
+      const { data, error } = await supabase.auth.signUp({
+
+        email: form.email,
+
+        password: form.password,
+
+      });
+
+
+
+      if (error) {
+
+        alert(error.message);
+
+        setLoading(false);
+
+        return;
+
+      }
+
+
+
+      userId = data.user?.id;
+
+
+
+      // Save profile
+
+      await supabase.from("profiles").insert({
+
+        id: userId,
+
+        name: form.name,
+
+        phone: form.phone,
+
+        email: form.email
+
+      });
+
+
+
+      // Redirect cleanly to event creation
+
+      router.refresh();
+
+
+
+      setUser(data.user);
+
+      setIsNewUser(false);
+
+      setLoading(false);
+
       return;
 
     }
 
 
 
-    // TEMP: Skip payment and go dashboard
+
+    // CREATE EVENT
+
+    const code = crypto.randomUUID().slice(0, 8);
+
+
+
+    await supabase.from("events").insert({
+
+      host_id: userId,
+
+      name: form.event_name,
+
+      host_name: form.name,
+
+      event_date: form.event_date,
+
+      event_code: code,
+
+      storage_limit_gb: 15,
+
+      validity_days: 30,
+
+      uploads_enabled: true,
+
+      downloads_enabled: true
+
+    });
+
+
 
     router.push("/events");
 
@@ -124,167 +240,157 @@ await supabase.from("events").insert({
 
 
 
+  if (checking) return null;
+
+
+
 
   return (
 
-    <main className="min-h-screen">
-
-
-      <div className="max-w-3xl mx-auto px-6 py-20">
-
-
-        <h1 className="text-5xl font-[var(--font-playfair)] mb-10">
-
-          Create Your Event
-
-        </h1>
-
- <p className="text-white/60 mb-10">
-
-          Enter event details and choose the suitable package
-
-        </p>
-
-
-        {/* Event Details */}
+    <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
 
 
 
-        <div className="space-y-6">
+      <div className="text-3xl font-[var(--font-playfair)]">
+
+        {isNewUser
+
+          ? "Create Account"
+
+          : "Create Event"}
+
+      </div>
 
 
-          <input
 
-            value={eventName}
 
-            onChange={(e) => setEventName(e.target.value)}
+      <Input
+
+        name="name"
+
+        placeholder="Your Name"
+
+        value={form.name}
+
+        onChange={handleChange}
+
+        disabled={!isNewUser}
+
+      />
+
+
+
+      <Input
+
+        name="phone"
+
+        placeholder="Phone Number"
+
+        value={form.phone}
+
+        onChange={handleChange}
+
+        disabled={!isNewUser}
+
+      />
+
+
+
+      <Input
+
+        name="email"
+
+        placeholder="Email"
+
+        value={form.email}
+
+        onChange={handleChange}
+
+        disabled={!isNewUser}
+
+      />
+
+
+
+      {isNewUser && (
+
+        <Input
+
+          name="password"
+
+          type="password"
+
+          placeholder="Password"
+
+          value={form.password}
+
+          onChange={handleChange}
+
+        />
+
+      )}
+
+
+
+      {!isNewUser && (
+
+        <>
+
+          <Input
+
+            name="event_name"
 
             placeholder="Event Name"
 
-            className="w-full p-4 bg-white/5 border border-white/10 rounded-lg"
+            value={form.event_name}
+
+            onChange={handleChange}
 
           />
 
 
-          <input
 
-            value={hostName}
+          <Input
 
-            onChange={(e) => setHostName(e.target.value)}
+            name="event_date"
 
-            placeholder="Host Name"
+            type="date"
 
-            className="w-full p-4 bg-white/5 border border-white/10 rounded-lg"
+            value={form.event_date}
 
-          />
-
-
-            <label className="block text-sm text-white/60 mb-2">
-
-    Event Date
-
-  </label>
-
-
-  <input
-    type="date"
-    value={eventDate}
-    onChange={(e) => setEventDate(e.target.value)}
-    title="Select the event start date (Uploads will begin 24 hours before this selected date)"
-    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg"
-  />
-
-
-  <p className="text-xs text-white/40 mt-2">
-
-    Select the event start date (Uploads will begin 24 hours before this date)
-
-  </p>
-
-
-        </div>
-
-
-
-
-        {/* Packages */}
-
-
-
-        <div className="mt-16 space-y-6">
-
-
-          <PackageCard
-
-            id="small"
-
-            guests="Up to 100 Guests"
-
-            price="₹499"
-
-            selectedPlan={selectedPlan}
-
-            setSelectedPlan={setSelectedPlan}
+            onChange={handleChange}
 
           />
 
+        </>
 
-          <PackageCard
-
-            id="medium"
-
-            guests="Up to 300 Guests"
-
-            price="₹999"
-
-            selectedPlan={selectedPlan}
-
-            setSelectedPlan={setSelectedPlan}
-
-          />
-
-
-          <PackageCard
-
-            id="large"
-
-            guests="Up to 800 Guests"
-
-            price="₹1999"
-
-            selectedPlan={selectedPlan}
-
-            setSelectedPlan={setSelectedPlan}
-
-          />
-
-
-        </div>
+      )}
 
 
 
 
-        {/* Payment Button */}
+      <button
 
+        onClick={handleSubmit}
 
+        disabled={loading}
 
-        <button
+        className="w-full py-3 rounded-xl bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black font-semibold"
 
-          onClick={handleCreateEvent}
+      >
 
-          disabled={loading}
+        {loading
 
-          className="mt-12 w-full bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black py-5 rounded-xl text-lg font-semibold"
+          ? "Please wait..."
 
-        >
+          : isNewUser
 
-          {loading ? "Creating Event..." : "Proceed to Payment"}
+          ? "Create Account"
 
-        </button>
+          : "Create Event"}
 
+      </button>
 
-
-      </div>
 
 
     </main>
@@ -295,56 +401,17 @@ await supabase.from("events").insert({
 
 
 
-
-
-function PackageCard({
-
-  id,
-
-  guests,
-
-  price,
-
-  selectedPlan,
-
-  setSelectedPlan,
-
-}: any) {
-
-  const active = selectedPlan === id;
-
+function Input(props: any) {
 
   return (
 
-    <div
+    <input
 
-      onClick={() => setSelectedPlan(id)}
+      {...props}
 
-      className={`p-6 border rounded-xl cursor-pointer
+      className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white placeholder:text-white/40 focus:border-[#C6A15B]"
 
-      ${active
-
-        ? "border-[#C6A15B] bg-white/5"
-
-        : "border-white/10"
-
-      }`}
-
-    >
-
-
-      <div className="flex justify-between">
-
-
-        <div>{guests}</div>
-
-        <div className="text-[#C6A15B]">{price}</div>
-
-
-      </div>
-
-
-    </div>
+    />
 
   );
 
