@@ -1,215 +1,322 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase";
 import Link from "next/link";
+import { getSupabase } from "@/lib/supabase";
+
+type Event = {
+
+  id: string;
+
+  name: string;
+
+  host_name: string;
+
+  event_date: string;
+
+  guest_limit: number;
+
+  storage_limit_gb: number;
+
+  validity_days: number;
+
+  event_code: string;
+
+  payment_status: string;
+
+  created_at: string;
+
+};
 
 export default function EventsPage() {
 
   const supabase = getSupabase();
 
-  const [events, setEvents] = useState<any[]>([]);
-  const [usage, setUsage] = useState<any>({});
+  const [events, setEvents] = useState<Event[]>([]);
+
   const [loading, setLoading] = useState(true);
 
+
+
   useEffect(() => {
+
     loadEvents();
+
   }, []);
+
+
+
 
   async function loadEvents() {
 
-    const { data: eventsData } = await supabase
+    const { data, error } = await supabase
+
       .from("events")
+
       .select("*")
+
       .order("created_at", { ascending: false });
 
-    setEvents(eventsData || []);
 
-    // Load storage usage for each event
 
-    const usageMap: any = {};
+    if (error) {
 
-    for (const event of eventsData || []) {
+      console.error(error);
 
-      const { data: media } = await supabase
-        .from("media")
-        .select("file_size")
-        .eq("event_id", event.id);
+    } else {
 
-      const totalBytes =
-        (media || []).reduce(
-          (sum, m) => sum + Number(m.file_size || 0),
-          0
-        );
-
-      usageMap[event.id] = totalBytes;
+      setEvents(data || []);
 
     }
 
-    setUsage(usageMap);
 
     setLoading(false);
 
   }
 
-  function copy(text: string) {
 
-    navigator.clipboard.writeText(text);
-    alert("Copied");
 
-  }
-
-  function daysLeft(expiry: string) {
-
-    return Math.max(
-      0,
-      Math.ceil(
-        (new Date(expiry).getTime() - Date.now())
-        /
-        (1000 * 60 * 60 * 24)
-      )
-    );
-
-  }
-
-  function formatGB(bytes: number) {
-
-    return (bytes / 1024 / 1024 / 1024).toFixed(2);
-
-  }
 
   return (
 
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-[#0A0A0B] text-white">
 
-      <div className="max-w-md mx-auto px-4 py-6">
+
+      <div className="max-w-6xl mx-auto px-8 py-16">
+
 
         {/* Header */}
 
-        <div className="flex justify-between items-center mb-6">
 
-          <h1 className="text-xl font-semibold">
-            Your Events
-          </h1>
+        <div className="flex justify-between items-center mb-12">
+
+
+          <div>
+
+
+            <h1 className="text-5xl font-[var(--font-playfair)]">
+
+              Your Events
+
+            </h1>
+
+
+            <p className="text-white/60 mt-2">
+
+              Manage and access your galleries
+
+            </p>
+
+
+          </div>
+
+
 
           <Link
             href="/events/new"
-            className="bg-black text-white px-4 py-2 rounded-lg text-sm"
+            className="px-6 py-3 rounded-lg bg-gradient-to-b from-[#E7D3A3] to-[#C6A15B] text-black font-semibold"
           >
-            New
+
+            Create Event
+
           </Link>
 
+
         </div>
+
+
+
+
+        {/* Content */}
+
+
 
         {loading && (
-          <p className="text-sm text-gray-500">
-            Loading...
-          </p>
+
+          <div className="text-white/40">
+
+            Loading events...
+
+          </div>
+
         )}
 
-        <div className="space-y-4">
 
-          {events.map((event) => {
 
-            const usedBytes = usage[event.id] || 0;
+        {!loading && events.length === 0 && (
 
-            const limitBytes =
-              event.storage_limit_gb * 1024 * 1024 * 1024;
+          <div className="text-white/40">
 
-            const percent =
-              Math.min(
-                100,
-                (usedBytes / limitBytes) * 100
-              );
+            No events created yet
 
-            const uploadLink =
-              `${window.location.origin}/e/${event.event_code}`;
+          </div>
 
-            const galleryLink =
-              `${window.location.origin}/g/${event.event_code}`;
+        )}
 
-            return (
 
-              <div
-                key={event.id}
-                className="bg-white rounded-xl p-4 shadow-sm border"
-              >
 
-                {/* Title */}
+        <div className="grid gap-6">
 
-                <h2 className="font-semibold mb-1">
-                  {event.name}
-                </h2>
 
-                {/* Expiry */}
+          {events.map((event) => (
 
-                <p className="text-xs text-gray-500 mb-3">
+            <EventCard key={event.id} event={event} />
 
-                  Expires in {daysLeft(event.expiry_date)} days
+          ))}
 
-                </p>
-
-                {/* Storage Bar */}
-
-                <div className="mb-2">
-
-                  <div className="w-full bg-gray-200 h-2 rounded">
-
-                    <div
-                      className="bg-black h-2 rounded"
-                      style={{ width: `${percent}%` }}
-                    />
-
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-1">
-
-                    {formatGB(usedBytes)} GB / {event.storage_limit_gb} GB
-
-                  </p>
-
-                </div>
-
-                {/* Copy buttons */}
-
-                <div className="flex gap-2 mb-3">
-
-                  <button
-                    onClick={() => copy(uploadLink)}
-                    className="flex-1 border rounded-lg py-2 text-sm"
-                  >
-                    Copy Upload
-                  </button>
-
-                  <button
-                    onClick={() => copy(galleryLink)}
-                    className="flex-1 border rounded-lg py-2 text-sm"
-                  >
-                    Copy Gallery
-                  </button>
-
-                </div>
-
-                {/* Open */}
-
-                <Link
-                  href={`/events/${event.id}`}
-                  className="block text-center bg-black text-white py-2 rounded-lg text-sm"
-                >
-                  Manage Event
-                </Link>
-
-              </div>
-
-            );
-
-          })}
 
         </div>
+
 
       </div>
 
+
     </main>
+
+  );
+
+}
+
+
+
+
+
+
+function EventCard({ event }: { event: Event }) {
+
+
+  const eventDate = new Date(event.event_date).toLocaleDateString();
+
+
+  return (
+
+    <div className="p-6 rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl">
+
+
+      <div className="flex justify-between items-start">
+
+
+        {/* Left */}
+
+
+        <div>
+
+
+          <div className="text-2xl font-semibold mb-1">
+
+            {event.name}
+
+          </div>
+
+
+          <div className="text-white/60 text-sm">
+
+            Host: {event.host_name}
+
+          </div>
+
+
+          <div className="text-white/60 text-sm">
+
+            Event Date: {eventDate}
+
+          </div>
+
+
+          <div className="text-white/60 text-sm">
+
+            Guests: Up to {event.guest_limit}
+
+          </div>
+
+
+          <div className="text-white/60 text-sm">
+
+            Storage: {event.storage_limit_gb} GB
+
+          </div>
+
+
+
+          <div className="mt-2">
+
+
+            {event.payment_status === "pending" && (
+
+              <span className="text-yellow-400 text-sm">
+
+                Payment Pending
+
+              </span>
+
+            )}
+
+
+            {event.payment_status === "paid" && (
+
+              <span className="text-green-400 text-sm">
+
+                Active
+
+              </span>
+
+            )}
+
+
+          </div>
+
+
+        </div>
+
+
+
+
+        {/* Right */}
+
+
+
+        <div className="flex flex-col gap-3">
+
+
+          <Link
+            href={`/events/${event.id}`}
+            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
+          >
+
+            Manage
+
+          </Link>
+
+
+
+          <Link
+            href={`/e/${event.event_code}`}
+            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
+          >
+
+            Upload Link
+
+          </Link>
+
+
+
+          <Link
+            href={`/g/${event.event_code}`}
+            className="px-4 py-2 border border-white/20 rounded-lg text-sm text-center hover:bg-white/10"
+          >
+
+            Gallery
+
+          </Link>
+
+
+        </div>
+
+
+      </div>
+
+
+    </div>
 
   );
 
