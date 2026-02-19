@@ -35,11 +35,11 @@ export default function Dashboard() {
 
 
 
-  useEffect(() => {
+useEffect(() => {
 
-    init();
+  initialize();
 
-  }, []);
+}, []);
 
 
 
@@ -58,10 +58,10 @@ export default function Dashboard() {
 
   setUser(user);
 
-  // load immediately
+  setLoadingUser(false); // THIS WAS MISSING
+
   load(user.id);
 
-  // safe interval using local variable
   const interval = setInterval(() => {
 
     load(user.id);
@@ -69,6 +69,7 @@ export default function Dashboard() {
   }, 10000);
 
 }
+
 
 
 
