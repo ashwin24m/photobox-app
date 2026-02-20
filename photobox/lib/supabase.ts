@@ -29,17 +29,24 @@ export function getSupabase() {
 
 
 
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-import { createClient } from "@supabase/supabase-js";
+let supabase: SupabaseClient | null = null;
 
-export function getSupabase(){
+export function getSupabase(): SupabaseClient {
+  if (supabase) return supabase;
 
-return createClient(
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  if (!url || !key) {
+    if (typeof window === "undefined") {
+      // During build/SSR just return a dummy safe client
+      return {} as SupabaseClient;
+    }
+    throw new Error("Supabase environment variables are missing.");
+  }
 
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-);
-
+  supabase = createClient(url, key);
+  return supabase;
 }
