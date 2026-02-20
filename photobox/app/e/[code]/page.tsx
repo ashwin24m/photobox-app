@@ -223,11 +223,10 @@ export default function UploadPage() {
     form.append("upload_preset", PRESET);
 
 
-    xhr.open(
-      "POST",
-      `https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`
-    );
-
+xhr.open(
+"POST",
+`https://api.cloudinary.com/v1_1/${CLOUD}/auto/upload`
+);
 
     xhr.upload.onprogress = e => {
 
