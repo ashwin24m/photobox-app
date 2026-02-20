@@ -4,10 +4,9 @@ import { useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-export default function NewEventPage(){
+export default function NewEventPage() {
 
 const supabase = getSupabase();
-
 const router = useRouter();
 
 const [eventName,setEventName]=useState("");
