@@ -14,12 +14,8 @@ export default function PublicGalleryPage() {
   const [event, setEvent] = useState<any>(null);
   const [media, setMedia] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [activeIndex, setActiveIndex] =
-    useState<number | null>(null);
-
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [expired, setExpired] = useState(false);
-
 
   useEffect(() => {
 
@@ -27,8 +23,9 @@ export default function PublicGalleryPage() {
 
   }, []);
 
-
   async function loadGallery() {
+
+    setLoading(true);
 
     const { data: eventData } =
       await supabase
@@ -37,26 +34,23 @@ export default function PublicGalleryPage() {
         .eq("event_code", eventCode)
         .single();
 
-
     if (!eventData) {
 
       setLoading(false);
       return;
 
     }
-if (!eventData.is_published) {
 
-  setLoading(false);
-  return;
+    if (!eventData.is_published) {
 
-}
+      setLoading(false);
+      return;
 
+    }
 
     if (
       eventData.expiry_date &&
-      new Date(eventData.expiry_date).getTime()
-      <
-      Date.now()
+      new Date(eventData.expiry_date) < new Date()
     ) {
 
       setExpired(true);
@@ -65,148 +59,97 @@ if (!eventData.is_published) {
 
     }
 
-
     setEvent(eventData);
 
+   const { data: mediaData } =
+  await supabase
+    .from("media")
+    .select("*")
+    .eq("event_code", eventCode)
+    .eq("status", "approved")
+    .order("created_at", { ascending: false });
 
-    const { data: mediaData } =
-      await supabase
-        .from("media")
-        .select("*")
-        .eq("event_id", eventData.id)
-        .eq("approved", true)
-        .order("created_at", {
-          ascending: false
-        });
 
+    console.log("MEDIA FOUND:", mediaData);
 
     setMedia(mediaData || []);
+
     setLoading(false);
 
   }
-
 
   function daysLeft() {
 
     if (!event?.expiry_date) return 0;
 
     return Math.max(
-
       0,
-
       Math.ceil(
-
-        (
-          new Date(event.expiry_date).getTime()
-          -
-          Date.now()
-        )
-
-        /
-
-        (1000 * 60 * 60 * 24)
-
+        (new Date(event.expiry_date).getTime() - Date.now())
+        / 86400000
       )
-
     );
 
   }
 
+  function next() {
 
-  if (loading) {
+    if (activeIndex === null) return;
 
-    return (
-
-      <main className="min-h-screen bg-white flex items-center justify-center">
-
-        <p className="text-gray-500">
-          Loading gallery...
-        </p>
-
-      </main>
-
+    setActiveIndex(
+      (activeIndex + 1) % media.length
     );
 
   }
 
+  function prev() {
 
-  if (expired) {
+    if (activeIndex === null) return;
 
-    return (
-
-      <main className="min-h-screen bg-white flex items-center justify-center">
-
-        <p className="text-gray-500">
-          This gallery has expired
-        </p>
-
-      </main>
-
+    setActiveIndex(
+      (activeIndex - 1 + media.length) % media.length
     );
 
   }
 
+  if (loading)
+    return <CenterText text="Loading gallery..." />;
 
-if (!event) {
+  if (expired)
+    return <CenterText text="Gallery expired" />;
 
-  return (
-
-    <main className="min-h-screen flex items-center justify-center">
-
-      <p className="text-gray-500">
-
-        Gallery not published yet
-
-      </p>
-
-    </main>
-
-  );
-
-}
-
-
+  if (!event)
+    return <CenterText text="Gallery not available" />;
 
   return (
 
     <main className="min-h-screen bg-white">
 
-      <div className="max-w-md mx-auto px-4 py-6">
+      {/* HEADER */}
 
+      <div className="sticky top-0 bg-white border-b">
 
-        {/* Header */}
+        <div className="max-w-md mx-auto px-4 py-4">
 
-        <div className="mb-6">
-
-          <h1 className="text-xl font-semibold">
-
+          <div className="text-lg font-semibold">
             {event.name}
+          </div>
 
-          </h1>
-
-          <p className="text-xs text-gray-500">
-
-            {media.length} photos •
-            {" "}
-            {daysLeft()} days remaining
-
-          </p>
+          <div className="text-xs text-gray-500">
+            {media.length} items • {daysLeft()} days left
+          </div>
 
         </div>
 
+      </div>
 
-        {/* Gallery Grid */}
+      {/* GRID */}
 
-        {media.length === 0 && (
+      <div className="max-w-md mx-auto px-4 py-4">
 
-          <p className="text-sm text-gray-500">
-
-            No photos yet
-
-          </p>
-
-        )}
-
+        {media.length === 0 &&
+          <p>No photos yet</p>
+        }
 
         <div className="grid grid-cols-2 gap-3">
 
@@ -218,32 +161,25 @@ if (!event) {
             return (
 
               <div
-
                 key={item.id}
-
-                onClick={() =>
-                  setActiveIndex(index)
-                }
-
-                className="cursor-pointer"
-
+                onClick={() => setActiveIndex(index)}
               >
 
-                {isVideo ? (
+                {isVideo ?
 
                   <video
                     src={item.file_url}
-                    className="rounded-lg w-full"
+                    className="rounded-xl"
                   />
 
-                ) : (
+                  :
 
                   <img
                     src={item.file_url}
-                    className="rounded-lg w-full"
+                    className="rounded-xl"
                   />
 
-                )}
+                }
 
               </div>
 
@@ -253,86 +189,66 @@ if (!event) {
 
         </div>
 
-
       </div>
 
-
-      {/* Fullscreen Viewer */}
+      {/* VIEWER */}
 
       {activeIndex !== null && (
 
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-
+        <div className="fixed inset-0 bg-black flex items-center justify-center">
 
           <button
-
-            onClick={() =>
-              setActiveIndex(null)
-            }
-
-            className="absolute top-6 right-6 text-white text-xl"
-
+            onClick={() => setActiveIndex(null)}
+            className="absolute top-6 right-6 text-white text-2xl"
           >
-
             ✕
-
           </button>
 
+          {media[activeIndex].file_url.includes("/video/") ?
 
-          {media[activeIndex].file_url.includes("/video/")
-            ?
-
-            (
-
-              <video
-
-                src={media[activeIndex].file_url}
-
-                controls
-                autoPlay
-
-                className="max-h-full max-w-full"
-
-              />
-
-            )
+            <video
+              src={media[activeIndex].file_url}
+              controls
+              autoPlay
+            />
 
             :
 
-            (
-
-              <img
-
-                src={media[activeIndex].file_url}
-
-                className="max-h-full max-w-full"
-
-              />
-
-            )
+            <img
+              src={media[activeIndex].file_url}
+            />
 
           }
 
+          {event.downloads_enabled && (
 
-          <a
+            <a
+              href={media[activeIndex].file_url}
+              download
+              className="absolute bottom-8 bg-white px-6 py-3 rounded-xl"
+            >
+              Download
+            </a>
 
-            href={media[activeIndex].file_url}
-
-            download
-
-            className="absolute bottom-8 bg-white text-black px-5 py-2 rounded-lg text-sm"
-
-          >
-
-            Download
-
-          </a>
-
+          )}
 
         </div>
 
       )}
 
+    </main>
+
+  );
+
+}
+
+function CenterText({ text }: any) {
+
+  return (
+
+    <main className="min-h-screen flex items-center justify-center">
+
+      {text}
 
     </main>
 
