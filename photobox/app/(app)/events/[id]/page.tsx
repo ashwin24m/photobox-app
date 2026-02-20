@@ -56,7 +56,7 @@ const [media,setMedia]=useState<Media[]>([]);
 
 const [loading,setLoading]=useState(true);
 
-const [openFolders,setOpenFolders]=useState<any>({});
+const [openFolders,setOpenFolders]=useState<Record<string, boolean>>({});
 
 const [qr,setQr]=useState<string|null>(null);
 
@@ -385,7 +385,10 @@ open={openFolders[key]}
 
 setOpen={(v:boolean)=>
 
-setOpenFolders(prev=>({...prev,[key]:v}))
+setOpenFolders((prev:Record<string, boolean>)=>({
+...prev,
+[key]:v
+}))
 
 }
 
