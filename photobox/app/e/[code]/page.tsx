@@ -181,13 +181,15 @@ export default function UploadPage() {
 
 
 
-  function handleFiles(e: any) {
+function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
 
-    const files = Array.from(e.target.files);
+  if (!e.target.files) return;
 
-    files.forEach(file => startUpload(file));
+  const files = Array.from(e.target.files) as File[];
 
-  }
+  files.forEach((file: File) => startUpload(file));
+
+}
 
 
 
