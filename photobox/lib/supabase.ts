@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+/* import { createClient } from "@supabase/supabase-js";
 
 let supabaseClient: any = null;
 
@@ -13,7 +13,7 @@ export function getSupabase() {
 
     throw new Error(
       "Supabase env vars missing. Check Vercel Environment Variables."
-    );
+    ); 
 
   }
 
@@ -23,5 +23,23 @@ export function getSupabase() {
   );
 
   return supabaseClient;
+
+}
+ */
+
+
+
+
+import { createClient } from "@supabase/supabase-js";
+
+export function getSupabase(){
+
+return createClient(
+
+process.env.NEXT_PUBLIC_SUPABASE_URL!,
+
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+);
 
 }
