@@ -28,25 +28,31 @@ export function getSupabase() {
  */
 
 
+import { createClient } from "@supabase/supabase-js";
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+let supabaseClient: ReturnType<typeof createClient> | null = null;
 
-let supabase: SupabaseClient | null = null;
+export function getSupabase() {
 
-export function getSupabase(): SupabaseClient {
-  if (supabase) return supabase;
+  if (supabaseClient) return supabaseClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    if (typeof window === "undefined") {
-      // During build/SSR just return a dummy safe client
-      return {} as SupabaseClient;
+
+    if (typeof window !== "undefined") {
+
+      console.error("Supabase env missing");
+
     }
-    throw new Error("Supabase environment variables are missing.");
+
+    return null as any;
+
   }
 
-  supabase = createClient(url, key);
-  return supabase;
+  supabaseClient = createClient(url, key);
+
+  return supabaseClient;
+
 }
