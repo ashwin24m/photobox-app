@@ -91,7 +91,7 @@ export default function UploadPage() {
           table: "media",
         },
 
-        payload => {
+        (payload: any) => {
 
           const m = payload.new;
 
